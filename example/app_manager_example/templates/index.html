@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>App Manager</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1, h2 { color: #333; }
+        .section { margin-bottom: 30px; }
+        .app, .remote-app { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; border-radius: 5px; }
+        button { margin-right: 5px; padding: 5px 10px; }
+        .running { color: green; font-weight: bold; }
+        .stopped { color: red; font-weight: bold; }
+        #system_status { margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <h1>App Manager Dashboard</h1>
+
+    <!-- System Status -->
+    <div id="system_status" class="section">
+        <strong>System Status:</strong> <span id="cpu">CPU: --%</span>, <span id="memory">Memory: --%</span>
+    </div>
+
+    <!-- Local Apps -->
+    <div class="section">
+        <h2>Installed Apps</h2>
+        <button onclick="refreshApps()">Refresh App List</button>
+        <div id="apps"></div>
+    </div>
+
+    <!-- Remote Apps -->
+    <div class="section">
+        <h2>Remote Repository</h2>
+        <button onclick="listRemoteApps()">List Remote Apps</button>
+        <div id="remote_apps"></div>
+    </div>
+
+    <script>
+        // ===== System Status =====
+        async function refreshSystemStatus() {
+            const res = await fetch('/system/status');
+            const data = await res.json();
+            document.getElementById('cpu').textContent = `CPU: ${data.cpu_usage_percent}%`;
+            document.getElementById('memory').textContent = `Memory: ${data.memory_usage_percent}%`;
+        }
+
+        // Refresh every 5 seconds
+        setInterval(refreshSystemStatus, 5000);
+        refreshSystemStatus();
+
+        // ===== Local Apps =====
+        async function refreshApps() {
+            const res = await fetch(`/apps`);
+            const data = await res.json();
+            const appsDiv = document.getElementById('apps');
+            appsDiv.innerHTML = '';
+            for (const app of data.apps) {
+                const appDiv = document.createElement('div');
+                appDiv.className = 'app';
+                appDiv.id = `app-${app}`;
+                appDiv.innerHTML = `
+                    <strong>${app}</strong> 
+                    <span id="status-${app}">Loading...</span>
+                    <div>
+                        <button onclick="startApp('${app}')">Start</button>
+                        <button onclick="stopApp('${app}')">Stop</button>
+                        <button onclick="getStatus('${app}')">Status</button>
+                        <button onclick="pullApp('${app}')">Pull</button>
+                    </div>
+                    <div id="usage-${app}"></div>
+                `;
+                appsDiv.appendChild(appDiv);
+                getStatus(app);
+            }
+        }
+
+        async function startApp(app) {
+            await fetch(`/apps/${app}/start`, { method: 'POST' });
+            getStatus(app);
+        }
+
+        async function stopApp(app) {
+            await fetch(`/apps/${app}/stop`, { method: 'POST' });
+            getStatus(app);
+        }
+
+        async function getStatus(app) {
+            const res = await fetch(`/apps/${app}/status`);
+            const data = await res.json();
+            const statusSpan = document.getElementById(`status-${app}`);
+            const usageDiv = document.getElementById(`usage-${app}`);
+
+            if (data.running) {
+                statusSpan.textContent = 'Running';
+                statusSpan.className = 'running';
+                if (data.usage) {
+                    usageDiv.textContent = `CPU: ${data.usage.cpu_percent.toFixed(2)}% | Memory: ${data.usage.memory_mb.toFixed(2)} MB`;
+                } else {
+                    usageDiv.textContent = '';
+                }
+            } else {
+                statusSpan.textContent = 'Stopped';
+                statusSpan.className = 'stopped';
+                usageDiv.textContent = '';
+            }
+        }
+
+        async function pullApp(app) {
+            const res = await fetch(`/apps/${app}/pull`, { method: 'POST' });
+            const data = await res.json();
+            alert(data.message || data.error || `Pull request for ${app} completed.`);
+            refreshApps();
+        }
+
+        // Auto-refresh local apps status every 5 seconds
+        setInterval(() => {
+            const appsDiv = document.getElementById('apps');
+            if (appsDiv.children.length > 0) {
+                for (let child of appsDiv.children) {
+                    const app = child.id.replace('app-', '');
+                    getStatus(app);
+                }
+            }
+        }, 5000);
+
+        // ===== Remote Apps =====
+        async function listRemoteApps() {
+            const res = await fetch(`/remote_apps`);
+            const data = await res.json();
+            const remoteDiv = document.getElementById('remote_apps');
+            remoteDiv.innerHTML = '';
+
+            if (data.remote_apps) {
+                for (const app of data.remote_apps) {
+                    const appDiv = document.createElement('div');
+                    appDiv.className = 'remote-app';
+                    appDiv.innerHTML = `
+                        <strong>${app}</strong>
+                        <button onclick="cloneApp('${app}')">Clone</button>
+                    `;
+                    remoteDiv.appendChild(appDiv);
+                }
+            } else if (data.error) {
+                remoteDiv.textContent = "Error: " + data.error;
+            }
+        }
+
+        async function cloneApp(app) {
+            const res = await fetch(`/apps/${app}/clone`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ repo_url: '' })  // repo URL is hard-coded in backend
+            });
+            const data = await res.json();
+            alert(data.message || data.error);
+            refreshApps(); // update local app list
+        }
+
+        // Initial load
+        refreshApps();
+    </script>
+</body>
+</html>

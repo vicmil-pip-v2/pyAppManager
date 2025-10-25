@@ -1,0 +1,5 @@
+apps
+venv
+pid
+logs
+.ssh

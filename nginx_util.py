@@ -46,25 +46,44 @@ class NginxServer:
         self.use_https = use_https
         self.ssl_cert = ssl_cert
         self.ssl_key = ssl_key
-        self.locations = {}
+        self.locations = {}  # key = route, value = dict with type and config
 
-    def add_location(self, route: str, port: int, websocket: bool = False):
-        self.locations[route] = {"port": port, "websocket": websocket}
+    # --- Location Adders ---
+    def add_proxy_location(self, route: str, port: int):
+        """Add a standard HTTP proxy location."""
+        self.locations[route] = {"type": "proxy", "port": port, "websocket": False}
 
-    def _generate_location_block(self, route, port, websocket):
+    def add_websocket_location(self, route: str, port: int):
+        """Add a WebSocket proxy location."""
+        self.locations[route] = {"type": "websocket", "port": port, "websocket": True}
+
+    def add_redirect_location(self, route: str, redirect_url: str):
+        """Add a location that redirects to a URL."""
+        self.locations[route] = {"type": "redirect", "redirect_url": redirect_url}
+
+    # --- Location Block Generator ---
+    def _generate_location_block(self, route, cfg):
         block = f"    location {route} {{\n"
-        block += f"        proxy_pass http://127.0.0.1:{port};\n"
-        block += f"        proxy_set_header X-Real-IP $remote_addr;\n"
-        block += f"        proxy_set_header Host $host;\n"
-        block += f"        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n"
-        if websocket:
-            block += f"        proxy_http_version 1.1;\n"
-            block += f"        proxy_set_header Upgrade $http_upgrade;\n"
-            block += f"        proxy_set_header Connection \"upgrade\";\n"
-            block += f"        proxy_set_header Origin $http_origin;\n"
+        if cfg["type"] == "redirect":
+            block += f"        proxy_set_header Host $http_host;\n"
+            block += f"        server_name_in_redirect off;\n"
+            block += f"        proxy_redirect off;\n"
+            block += f"        rewrite ^([^.]*[^/])$ {cfg['redirect_url']}/ permanent;\n"   #This will add trailing / to the url which will solve the issue.
+            #block += f"        return 301 {cfg['redirect_url']}$request_uri;\n"
+        else:
+            block += f"        proxy_pass http://127.0.0.1:{cfg['port']};\n"
+            block += f"        proxy_set_header X-Real-IP $remote_addr;\n"
+            block += f"        proxy_set_header Host $host;\n"
+            block += f"        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n"
+            if cfg.get("websocket"):
+                block += f"        proxy_http_version 1.1;\n"
+                block += f"        proxy_set_header Upgrade $http_upgrade;\n"
+                block += f"        proxy_set_header Connection \"upgrade\";\n"
+                #block += f"        proxy_set_header Origin $http_origin;\n"
         block += f"    }}\n"
         return block
 
+    # --- Server Block Generator ---
     def _generate_server_block(self, listen_port, ssl=False, redirect_to_https=False):
         server_block = f"server {{\n"
         server_block += f"    listen {listen_port}"
@@ -72,6 +91,7 @@ class NginxServer:
             server_block += " ssl"
         server_block += ";\n"
         server_block += f"    server_name {self.server_name};\n\n"
+        #server_block += f"    server_name_in_redirect off;\n"
 
         if ssl:
             if not self.ssl_cert or not self.ssl_key:
@@ -83,17 +103,16 @@ class NginxServer:
             server_block += "    return 301 https://$host$request_uri;\n"
         else:
             for route, cfg in self.locations.items():
-                server_block += self._generate_location_block(route, cfg["port"], cfg["websocket"])
+                server_block += self._generate_location_block(route, cfg)
+
         server_block += "}\n\n"
         return server_block
 
+    # --- Full Config Generator ---
     def generate_config(self):
         config = ""
         if self.use_http:
-            http_port = 80
-            if self.server_name == "_":
-                http_port = 8000 # For local development
-
+            http_port = 80 if self.server_name != "localhost" else 8000
             redirect_to_https = self.use_https
             config += self._generate_server_block(http_port, ssl=False, redirect_to_https=redirect_to_https)
         if self.use_https:

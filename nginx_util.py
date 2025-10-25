@@ -65,11 +65,7 @@ class NginxServer:
     def _generate_location_block(self, route, cfg):
         block = f"    location {route} {{\n"
         if cfg["type"] == "redirect":
-            block += f"        proxy_set_header Host $http_host;\n"
-            block += f"        server_name_in_redirect off;\n"
-            block += f"        proxy_redirect off;\n"
-            block += f"        rewrite ^([^.]*[^/])$ {cfg['redirect_url']}/ permanent;\n"   #This will add trailing / to the url which will solve the issue.
-            #block += f"        return 301 {cfg['redirect_url']}$request_uri;\n"
+            block += f"        return 301 {cfg['redirect_url']};\n"
         else:
             block += f"        proxy_pass http://127.0.0.1:{cfg['port']};\n"
             block += f"        proxy_set_header X-Real-IP $remote_addr;\n"

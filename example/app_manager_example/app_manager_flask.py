@@ -3,6 +3,7 @@ import os
 import sys
 import pathlib
 import re
+from functools import wraps
 
 # Add project paths
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[0]))
@@ -30,6 +31,48 @@ APP_REPO_URL = "git@github.com:vicmil-work/private-apps.git"
 app = Flask(__name__, template_folder="templates")
 
 
+import secrets
+
+# === AUTH TOKEN SETUP ===
+TOKEN_FILE = os.path.join(os.path.dirname(__file__), "auth_token.txt")
+
+def load_or_create_token():
+    """Generate a random token if it doesn't exist, else load from file."""
+    if os.path.exists(TOKEN_FILE):
+        with open(TOKEN_FILE, "r") as f:
+            token = f.read().strip()
+            if token:
+                return token
+
+    # Generate a secure random token
+    token = secrets.token_hex(32)  # 64-character hex token
+    with open(TOKEN_FILE, "w") as f:
+        f.write(token)
+    print(f"[INFO] Auth token generated and saved to: {TOKEN_FILE}")
+    return token
+
+AUTH_TOKEN = load_or_create_token()
+
+
+def require_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get("Authorization")
+
+        if not token:
+            return jsonify({"error": "Missing Authorization header"}), 401
+
+        # Support "Bearer <token>" or plain token
+        if token.startswith("Bearer "):
+            token = token.split("Bearer ")[1]
+
+        if token != AUTH_TOKEN:
+            return jsonify({"error": "Invalid or expired token"}), 403
+
+        return f(*args, **kwargs)
+    return decorated
+
+
 def verify_app_name(app_name):
     """
     Verify that app_name only consists of:
@@ -49,6 +92,7 @@ def verify_app_name(app_name):
 
 # ====== API ROUTES ======
 @app.route("/apps", methods=["GET"])
+@require_auth
 def list_apps():
     try:
         apps = list_installed_apps(APP_DIR)
@@ -57,6 +101,7 @@ def list_apps():
         return jsonify({"error": str(e)}), 500
 
 @app.route("/apps/<app_name>/start", methods=["POST"])
+@require_auth
 def start(app_name):
     try:
         verify_app_name(app_name)
@@ -68,6 +113,7 @@ def start(app_name):
         return jsonify({"error": str(e)}), 500
 
 @app.route("/apps/<app_name>/stop", methods=["POST"])
+@require_auth
 def stop(app_name):
     try:
         verify_app_name(app_name)
@@ -77,6 +123,7 @@ def stop(app_name):
         return jsonify({"error": str(e)}), 500
 
 @app.route("/apps/<app_name>/status", methods=["GET"])
+@require_auth
 def status(app_name):
     verify_app_name(app_name)
     running = is_app_running(PID_DIR, app_name)
@@ -84,10 +131,12 @@ def status(app_name):
     return jsonify({"app_name": app_name, "running": running, "usage": usage})
 
 @app.route("/system/status", methods=["GET"])
+@require_auth
 def system_status():
     return jsonify(get_computer_memory_and_cpu_usage())
 
 @app.route("/apps/<app_name>/clone", methods=["POST"])
+@require_auth
 def clone_app(app_name):
     repo_url = APP_REPO_URL
     try:
@@ -98,6 +147,7 @@ def clone_app(app_name):
         return jsonify({"error": str(e)}), 500
 
 @app.route("/apps/<app_name>/pull", methods=["POST"])
+@require_auth
 def pull_app(app_name):
     try:
         verify_app_name(app_name)
@@ -108,6 +158,7 @@ def pull_app(app_name):
         return jsonify({"error": str(e)}), 500
     
 @app.route("/remote_apps", methods=["GET"])
+@require_auth
 def remote_apps():
     """
     List branches (apps) from the hard-coded remote repo.
@@ -124,6 +175,11 @@ def remote_apps():
 def dashboard():
     """Render dashboard HTML page"""
     return render_template("index.html")
+
+
+@app.route("/login")
+def login():
+    return render_template("login.html")
 
 
 if __name__ == "__main__":

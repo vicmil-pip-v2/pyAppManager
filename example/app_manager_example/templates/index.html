@@ -12,10 +12,29 @@
         .running { color: green; font-weight: bold; }
         .stopped { color: red; font-weight: bold; }
         #system_status { margin-bottom: 20px; }
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .logout-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .logout-btn:hover {
+            background-color: #b02a37;
+        }
     </style>
 </head>
 <body>
-    <h1>App Manager Dashboard</h1>
+    <div class="top-bar">
+        <h1>App Manager Dashboard</h1>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
 
     <!-- System Status -->
     <div id="system_status" class="section">
@@ -37,21 +56,57 @@
     </div>
 
     <script>
-        // ===== System Status =====
-        async function refreshSystemStatus() {
-            const res = await fetch('/system/status');
-            const data = await res.json();
-            document.getElementById('cpu').textContent = `CPU: ${data.cpu_usage_percent}%`;
-            document.getElementById('memory').textContent = `Memory: ${data.memory_usage_percent}%`;
+        // ===== AUTH HANDLING =====
+        const AUTH_TOKEN = localStorage.getItem("AUTH_TOKEN");
+
+        if (!AUTH_TOKEN) {
+            // Redirect if not logged in
+            window.location.href = "/login";
         }
 
-        // Refresh every 5 seconds
+        function logout() {
+            localStorage.removeItem("AUTH_TOKEN");
+            window.location.href = "/login";
+        }
+
+        async function authFetch(url, options = {}) {
+            options.headers = {
+                ...(options.headers || {}),
+                "Authorization": `Bearer ${AUTH_TOKEN}`,
+                "Content-Type": options.headers?.["Content-Type"] || "application/json"
+            };
+
+            const res = await fetch(url, options);
+
+            // If token expired or invalid, redirect to login
+            if (res.status === 401 || res.status === 403) {
+                alert("Session expired or invalid token. Please log in again.");
+                logout();
+                return Promise.reject("Unauthorized");
+            }
+
+            return res;
+        }
+
+        // ===== SYSTEM STATUS =====
+        async function refreshSystemStatus() {
+            try {
+                const res = await authFetch('/system/status');
+                const data = await res.json();
+                document.getElementById('cpu').textContent = `CPU: ${data.cpu_usage_percent}%`;
+                document.getElementById('memory').textContent = `Memory: ${data.memory_usage_percent}%`;
+            } catch {
+                document.getElementById('cpu').textContent = `CPU: --%`;
+                document.getElementById('memory').textContent = `Memory: --%`;
+            }
+        }
+
         setInterval(refreshSystemStatus, 5000);
         refreshSystemStatus();
 
-        // ===== Local Apps =====
+        // ===== LOCAL APPS =====
         async function refreshApps() {
-            const res = await fetch(`/apps`);
+            const res = await authFetch(`/apps`);
             const data = await res.json();
             const appsDiv = document.getElementById('apps');
             appsDiv.innerHTML = '';
@@ -76,17 +131,17 @@
         }
 
         async function startApp(app) {
-            await fetch(`/apps/${app}/start`, { method: 'POST' });
+            await authFetch(`/apps/${app}/start`, { method: 'POST' });
             getStatus(app);
         }
 
         async function stopApp(app) {
-            await fetch(`/apps/${app}/stop`, { method: 'POST' });
+            await authFetch(`/apps/${app}/stop`, { method: 'POST' });
             getStatus(app);
         }
 
         async function getStatus(app) {
-            const res = await fetch(`/apps/${app}/status`);
+            const res = await authFetch(`/apps/${app}/status`);
             const data = await res.json();
             const statusSpan = document.getElementById(`status-${app}`);
             const usageDiv = document.getElementById(`usage-${app}`);
@@ -107,13 +162,13 @@
         }
 
         async function pullApp(app) {
-            const res = await fetch(`/apps/${app}/pull`, { method: 'POST' });
+            const res = await authFetch(`/apps/${app}/pull`, { method: 'POST' });
             const data = await res.json();
             alert(data.message || data.error || `Pull request for ${app} completed.`);
             refreshApps();
         }
 
-        // Auto-refresh local apps status every 5 seconds
+        // Auto-refresh local app statuses
         setInterval(() => {
             const appsDiv = document.getElementById('apps');
             if (appsDiv.children.length > 0) {
@@ -124,9 +179,9 @@
             }
         }, 5000);
 
-        // ===== Remote Apps =====
+        // ===== REMOTE APPS =====
         async function listRemoteApps() {
-            const res = await fetch(`/remote_apps`);
+            const res = await authFetch(`/remote_apps`);
             const data = await res.json();
             const remoteDiv = document.getElementById('remote_apps');
             remoteDiv.innerHTML = '';
@@ -147,14 +202,13 @@
         }
 
         async function cloneApp(app) {
-            const res = await fetch(`/apps/${app}/clone`, {
+            const res = await authFetch(`/apps/${app}/clone`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ repo_url: '' })  // repo URL is hard-coded in backend
+                body: JSON.stringify({ repo_url: '' })  // handled in backend
             });
             const data = await res.json();
             alert(data.message || data.error);
-            refreshApps(); // update local app list
+            refreshApps();
         }
 
         // Initial load

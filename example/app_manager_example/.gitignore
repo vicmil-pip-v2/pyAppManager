@@ -3,3 +3,4 @@ venv
 pid
 logs
 .ssh
+auth_token.txt

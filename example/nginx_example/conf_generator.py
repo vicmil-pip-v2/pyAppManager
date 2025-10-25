@@ -29,4 +29,8 @@ server1.add_websocket_location("/", 5002)
 # Save config directly to conf.d and reload Nginx
 conf_file = builder.save_to_file("/etc/nginx/conf.d/example.conf")
 conf_file = builder.save_to_file(get_directory_path(__file__) + "/example.conf")
+
+with open(get_directory_path(__file__) + "/builder_config.json", "w+") as file:
+    file.write(builder.to_json())
+
 builder.reload_nginx()

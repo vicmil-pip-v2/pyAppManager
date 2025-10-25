@@ -1,0 +1,22 @@
+{
+    "servers": [
+        {
+            "server_name": "localhost",
+            "use_http": true,
+            "use_https": false,
+            "ssl_cert": null,
+            "ssl_key": null,
+            "locations": {
+                "/api": {
+                    "type": "redirect",
+                    "redirect_url": "https://github.com"
+                },
+                "/": {
+                    "type": "websocket",
+                    "port": 5002,
+                    "websocket": true
+                }
+            }
+        }
+    ]
+}

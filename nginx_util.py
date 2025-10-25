@@ -1,5 +1,6 @@
 import os
 import subprocess
+import json
 
 class NginxConfigBuilder:
     def __init__(self):
@@ -37,6 +38,25 @@ class NginxConfigBuilder:
             print("Nginx reloaded successfully.")
         except subprocess.CalledProcessError:
             print("Error: Nginx configuration test failed. Not reloading.")
+
+
+    # --- JSON Conversion ---
+    def to_json(self) -> str:
+        """Serialize the builder (and all servers) to a JSON string."""
+        data = {
+            "servers": [server.to_dict() for server in self.servers]
+        }
+        return json.dumps(data, indent=4)
+
+    @classmethod
+    def from_json(cls, json_str: str) -> "NginxConfigBuilder":
+        """Recreate a builder from a JSON string."""
+        data = json.loads(json_str)
+        builder = cls()
+        for server_data in data.get("servers", []):
+            server = NginxServer.from_dict(server_data)
+            builder.servers.append(server)
+        return builder
 
 
 class NginxServer:
@@ -114,3 +134,28 @@ class NginxServer:
         if self.use_https:
             config += self._generate_server_block(443, ssl=True)
         return config
+    
+    # --- JSON Conversion ---
+    def to_dict(self) -> dict:
+        """Convert this server to a serializable dict."""
+        return {
+            "server_name": self.server_name,
+            "use_http": self.use_http,
+            "use_https": self.use_https,
+            "ssl_cert": self.ssl_cert,
+            "ssl_key": self.ssl_key,
+            "locations": self.locations
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "NginxServer":
+        """Recreate a server from a dict."""
+        server = cls(
+            server_name=data.get("server_name", "_"),
+            use_http=data.get("use_http", True),
+            use_https=data.get("use_https", False),
+            ssl_cert=data.get("ssl_cert"),
+            ssl_key=data.get("ssl_key"),
+        )
+        server.locations = data.get("locations", {})
+        return server

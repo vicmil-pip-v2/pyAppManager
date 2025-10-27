@@ -175,7 +175,7 @@ def setup_app_manager_routes(app, APP_DIR: str, PID_DIR: str, LOG_DIR: str, SSH_
     app.register_blueprint(bp)
 
 
-def setup_nginx_manager_routes(app, conf_file_path: str, local_conf_json_path: str, ssl_cert: str, ssl_key: str, server_domain: str, TOKEN_FILE: str, namespace="/nginx", http_only=True):
+def setup_nginx_manager_routes(app, conf_file_path: str, local_conf_json_path: str, ssl_cert: str, ssl_key: str, server_domain: str, TOKEN_FILE: str, namespace="/nginx"):
     def load_or_create_token():
         """Generate a random token if it doesn't exist, else load from file."""
         if os.path.exists(TOKEN_FILE):
@@ -329,10 +329,8 @@ def setup_nginx_manager_routes(app, conf_file_path: str, local_conf_json_path: s
             # Add main server block (either HTTP or HTTPS)
             server = builder.add_server(
                 server_name=server_domain,
-                use_http=http_only,
-                use_https=not http_only,
-                ssl_cert=ssl_cert if not http_only else None,
-                ssl_key=ssl_key if not http_only else None
+                ssl_cert=ssl_cert,
+                ssl_key=ssl_key
             )
 
             # Add routes

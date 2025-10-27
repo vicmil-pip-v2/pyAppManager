@@ -6,7 +6,7 @@ import subprocess
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[2]))
 
 from vicmil_pip.lib.pyUtil import get_directory_path
-from vicmil_pip.lib.pyAppRepoManager.git_util import clone_repo_using_ssh_key, pull_latest_changes_using_ssh_key, generate_ssh_keypair, list_branches_using_ssh_key
+from vicmil_pip.lib.pyAppManager.git_util import clone_repo_using_ssh_key, pull_latest_changes_using_ssh_key, generate_ssh_keypair, list_branches_using_ssh_key
 from vicmil_pip.lib.pyUtil import *
 
 

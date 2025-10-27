@@ -14,8 +14,8 @@ sys.path.append(str(pathlib.Path(__file__).resolve().parents[4]))
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[5]))
 
 from vicmil_pip.lib.pyUtil import *
-from vicmil_pip.lib.pyAppRepoManager.app_manager_util import *
-from vicmil_pip.lib.pyAppRepoManager.nginx_util import NginxConfigBuilder
+from vicmil_pip.lib.pyAppManager.app_manager_util import *
+from vicmil_pip.lib.pyAppManager.nginx_util import NginxConfigBuilder
 
 import secrets
 

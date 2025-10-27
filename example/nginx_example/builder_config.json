@@ -2,8 +2,6 @@
     "servers": [
         {
             "server_name": "localhost",
-            "use_http": true,
-            "use_https": false,
             "ssl_cert": null,
             "ssl_key": null,
             "locations": {

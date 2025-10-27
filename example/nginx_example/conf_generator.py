@@ -17,8 +17,6 @@ builder = NginxConfigBuilder()
 
 server1 = builder.add_server(
     server_name="localhost", # example.com
-    use_http=True,
-    #use_https=True,
     #ssl_cert="/etc/letsencrypt/live/example.com/fullchain.pem",
     #ssl_key="/etc/letsencrypt/live/example.com/privkey.pem"
 )

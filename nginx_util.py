@@ -6,8 +6,8 @@ class NginxConfigBuilder:
     def __init__(self):
         self.servers = []
 
-    def add_server(self, server_name="_", use_http=True, use_https=False, ssl_cert=None, ssl_key=None):
-        server = NginxServer(server_name, use_http, use_https, ssl_cert, ssl_key)
+    def add_server(self, server_name="_", ssl_cert=None, ssl_key=None):
+        server = NginxServer(server_name, ssl_cert, ssl_key)
         self.servers.append(server)
         return server
 
@@ -60,10 +60,9 @@ class NginxConfigBuilder:
 
 
 class NginxServer:
-    def __init__(self, server_name="_", use_http=True, use_https=False, ssl_cert=None, ssl_key=None):
+    def __init__(self, server_name="_", ssl_cert=None, ssl_key=None):
+        # Will automatically use https if ssl_cert and ssl_key is provided
         self.server_name = server_name
-        self.use_http = use_http
-        self.use_https = use_https
         self.ssl_cert = ssl_cert
         self.ssl_key = ssl_key
         self.locations = {}  # key = route, value = dict with type and config
@@ -116,7 +115,9 @@ class NginxServer:
             server_block += f"    ssl_certificate_key {self.ssl_key};\n\n"
 
         if redirect_to_https:
-            server_block += "    return 301 https://$host$request_uri;\n"
+            server_block += "    location / {\n"
+            server_block += "       return 301 https://$host$request_uri;\n"
+            server_block += "    }\n"
         else:
             for route, cfg in self.locations.items():
                 server_block += self._generate_location_block(route, cfg)
@@ -127,11 +128,15 @@ class NginxServer:
     # --- Full Config Generator ---
     def generate_config(self):
         config = ""
-        if self.use_http:
-            http_port = 80 if self.server_name != "localhost" else 8000
-            redirect_to_https = self.use_https
-            config += self._generate_server_block(http_port, ssl=False, redirect_to_https=redirect_to_https)
-        if self.use_https:
+        use_https = self.ssl_key is not None
+
+        # Generate http code
+        http_port = 80 if self.server_name != "localhost" else 8000
+        redirect_to_https = use_https
+        config += self._generate_server_block(http_port, ssl=False, redirect_to_https=redirect_to_https)
+
+        # Generate https code
+        if use_https:
             config += self._generate_server_block(443, ssl=True)
         return config
     
@@ -140,8 +145,6 @@ class NginxServer:
         """Convert this server to a serializable dict."""
         return {
             "server_name": self.server_name,
-            "use_http": self.use_http,
-            "use_https": self.use_https,
             "ssl_cert": self.ssl_cert,
             "ssl_key": self.ssl_key,
             "locations": self.locations
@@ -152,8 +155,6 @@ class NginxServer:
         """Recreate a server from a dict."""
         server = cls(
             server_name=data.get("server_name", "_"),
-            use_http=data.get("use_http", True),
-            use_https=data.get("use_https", False),
             ssl_cert=data.get("ssl_cert"),
             ssl_key=data.get("ssl_key"),
         )

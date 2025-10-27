@@ -29,13 +29,15 @@ LOG_DIR = get_directory_path(__file__) + "/logs"
 SSH_KEY_PATH = ssh_dir + "/id_ed25519"
 APP_REPO_URL = "git@github.com:vicmil-work/private-apps.git"
 TOKEN_FILE = os.path.join(os.path.dirname(__file__), "auth_token.txt")
+ssl_cert = None
+ssl_key = None
 
 app = Flask(__name__, template_folder="templates")
 conf_file = "/etc/nginx/conf.d/example.conf"
 local_conf_json_path = get_directory_path(__file__) + "/local_conf.json"
 
 flask_util.setup_app_manager_routes(app=app, APP_DIR=APP_DIR, PID_DIR=PID_DIR, LOG_DIR=LOG_DIR, SSH_KEY_PATH=SSH_KEY_PATH, APP_REPO_URL=APP_REPO_URL, TOKEN_FILE=TOKEN_FILE)
-flask_util.setup_nginx_manager_routes(app=app, conf_file_path=conf_file, local_conf_json_path=local_conf_json_path, ssl_cert_path=None, server_domain="localhost", TOKEN_FILE=TOKEN_FILE)
+flask_util.setup_nginx_manager_routes(app=app, conf_file_path=conf_file, local_conf_json_path=local_conf_json_path, ssl_cert=ssl_cert, ssl_key=ssl_key, server_domain="localhost", TOKEN_FILE=TOKEN_FILE)
 
 if __name__ == "__main__":
     # Fetch all the apps and kill them

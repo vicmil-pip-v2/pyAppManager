@@ -22,7 +22,7 @@ import secrets
 import json
 
 
-def setup_app_manager_routes(app, APP_DIR: str, PID_DIR: str, LOG_DIR: str, SSH_KEY_PATH: str, APP_REPO_URL: str, TOKEN_FILE: str, namespace="/", ):
+def setup_app_manager_routes(app, APP_DIR: str, PID_DIR: str, LOG_DIR: str, APP_REPO_URL: str, TOKEN_FILE: str, namespace="/", ):
     def verify_app_name(app_name):
         """
         Verify that app_name only consists of:
@@ -175,7 +175,7 @@ def setup_app_manager_routes(app, APP_DIR: str, PID_DIR: str, LOG_DIR: str, SSH_
     app.register_blueprint(bp)
 
 
-def setup_nginx_manager_routes(app, conf_file_path: str, local_conf_json_path: str, ssl_cert_path: str, server_domain: str, TOKEN_FILE: str, namespace="/nginx", http_only=True):
+def setup_nginx_manager_routes(app, conf_file_path: str, local_conf_json_path: str, ssl_cert: str, ssl_key: str, server_domain: str, TOKEN_FILE: str, namespace="/nginx", http_only=True):
     def load_or_create_token():
         """Generate a random token if it doesn't exist, else load from file."""
         if os.path.exists(TOKEN_FILE):
@@ -331,8 +331,8 @@ def setup_nginx_manager_routes(app, conf_file_path: str, local_conf_json_path: s
                 server_name=server_domain,
                 use_http=http_only,
                 use_https=not http_only,
-                ssl_cert=ssl_cert_path if not http_only else None,
-                ssl_key=ssl_cert_path.replace(".crt", ".key") if not http_only else None
+                ssl_cert=ssl_cert if not http_only else None,
+                ssl_key=ssl_key if not http_only else None
             )
 
             # Add routes
@@ -375,6 +375,8 @@ if __name__ == "__main__":
     LOG_DIR = get_directory_path(__file__) + "/logs"
     SSH_KEY_PATH = ssh_dir + "/id_ed25519"
     APP_REPO_URL = "git@github.com:vicmil-work/private-apps.git"
+    ssl_cert = None
+    ssl_key = None
 
     app = Flask(__name__, template_folder="templates")
 
@@ -383,7 +385,7 @@ if __name__ == "__main__":
     for my_app in apps:
         stop_app(PID_DIR, my_app)
 
-    setup_app_manager_routes(app=app, APP_DIR=APP_DIR, PID_DIR=PID_DIR, LOG_DIR=LOG_DIR, SSH_KEY_PATH=SSH_KEY_PATH, APP_REPO_URL=APP_REPO_URL)
+    setup_app_manager_routes(app=app, APP_DIR=APP_DIR, PID_DIR=PID_DIR, LOG_DIR=LOG_DIR, APP_REPO_URL=APP_REPO_URL)
 
     # Run locally on 127.0.0.1
     app.run(host="127.0.0.1", port=5002, debug=False)

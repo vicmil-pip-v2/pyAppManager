@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Nginx Manager</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: system-ui, sans-serif; background-color: #f7f9fc; margin: 0; }
+        header { 
+            background: #2b6cb0; 
+            color: white; 
+            padding: 1rem 2rem; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
+        header h1 { margin: 0; font-size: 1.5rem; }
+        .header-buttons { display: flex; gap: 10px; }
+        button { padding: 0.4rem 1rem; border: none; border-radius: 6px; cursor: pointer; }
+        button.primary { background-color: #2b6cb0; color: white; }
+        button.danger { background-color: #e53e3e; color: white; }
+        button.secondary { background-color: #718096; color: white; }
+        button.home { background-color: #38a169; color: white; }
+        button.home:hover { background-color: #2f855a; }
+        main { padding: 2rem; max-width: 800px; margin: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; background: white; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        th, td { border: 1px solid #ccc; padding: 0.5rem; text-align: left; }
+        th { background-color: #edf2f7; }
+        input[type="text"], input[type="number"] { width: 100%; padding: 0.3rem; }
+        pre { background: #eee; padding: 0.5rem; margin-top: 1rem; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Nginx Manager — {{ domain }}</h1>
+    <div class="header-buttons">
+        <button class="home" onclick="goHome()">🏠 Home</button>
+    </div>
+</header>
+
+<main>
+    <section>
+        <h2>Current Routes</h2>
+        <table id="routes-table">
+            <thead>
+                <tr>
+                    <th>Route</th><th>Port</th><th>WebSocket</th><th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="routes-body"><tr><td colspan="4" style="text-align:center;">Loading...</td></tr></tbody>
+        </table>
+        <button class="secondary" onclick="addRouteRow()">➕ Add Route</button>
+    </section>
+
+    <section style="margin-top:2rem;">
+        <h2>Actions</h2>
+        <button class="primary" onclick="saveConfig()">💾 Save Config</button>
+        <button class="primary" onclick="buildNginx()">⚙️ Build & Reload Nginx</button>
+    </section>
+
+    <pre id="status"></pre>
+</main>
+
+<script>
+    // --- Auth check ---
+    const TOKEN = localStorage.getItem('AUTH_TOKEN');
+    if (!TOKEN) {
+        window.location.href = '/login';
+    }
+
+    function goHome() {
+        window.location.href = '/';
+    }
+
+    const API_BASE = '/nginx';
+
+    async function fetchConfig() {
+        const res = await fetch(`${API_BASE}/conf`, {
+            headers: { "Authorization": "Bearer " + TOKEN }
+        });
+        const data = await res.json();
+        const status = document.getElementById("status");
+        if (!res.ok) {
+            status.textContent = "❌ " + (data.error || "Failed to load config");
+            if (res.status === 401 || res.status === 403) {
+                localStorage.removeItem("AUTH_TOKEN");
+                window.location.href = '/login';
+            }
+            return;
+        }
+        renderRoutes(data.routes || []);
+    }
+
+    function renderRoutes(routes) {
+        const body = document.getElementById("routes-body");
+        body.innerHTML = "";
+        if (routes.length === 0) {
+            body.innerHTML = "<tr><td colspan='4' style='text-align:center;'>No routes defined</td></tr>";
+            return;
+        }
+
+        const domain = "{{ domain }}"; // from your template
+        for (const r of routes) {
+            const routePath = r.route || "/";
+            const port = r.port || 0;
+            const websocket = r.websocket ? "checked" : "";
+            let linkHtml = "";
+
+            // Only show a link if the domain is localhost
+            if (domain === "localhost" && routePath) {
+                const fullUrl = `http://localhost:8000${routePath}`;
+                linkHtml = `<a href="${fullUrl}" target="_blank">${fullUrl}</a>`;
+            }
+
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td>
+                    <input type="text" value="${routePath}">
+                    ${linkHtml ? `<div style="font-size:0.9em; margin-top:4px;">${linkHtml}</div>` : ""}
+                </td>
+                <td><input type="number" value="${port}"></td>
+                <td style="text-align:center;"><input type="checkbox" ${websocket}></td>
+                <td><button class="danger" onclick="this.closest('tr').remove()">🗑</button></td>`;
+            body.appendChild(tr);
+        }
+    }
+
+
+    function addRouteRow() {
+        const body = document.getElementById("routes-body");
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td><input type="text" value="/" /></td>
+            <td><input type="number" value="3000" /></td>
+            <td style="text-align:center;"><input type="checkbox" /></td>
+            <td><button class="danger" onclick="this.closest('tr').remove()">🗑</button></td>`;
+        body.appendChild(tr);
+    }
+
+    function collectRoutes() {
+        const rows = [...document.querySelectorAll("#routes-body tr")];
+        return rows.map(r => {
+            const inputs = r.querySelectorAll("input");
+            return { route: inputs[0].value.trim(), port: parseInt(inputs[1].value), websocket: inputs[2].checked };
+        }).filter(r => r.port > 0);
+    }
+
+    async function saveConfig() {
+        const routes = collectRoutes();
+        const res = await fetch(`${API_BASE}/conf`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+            body: JSON.stringify({ routes })
+        });
+        const data = await res.json();
+        const status = document.getElementById("status");
+        status.textContent = res.ok ? "✅ " + data.message : "❌ " + (data.error || "Failed to save");
+    }
+
+    async function buildNginx() {
+        const res = await fetch(`${API_BASE}/build`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + TOKEN }
+        });
+        const data = await res.json();
+        const status = document.getElementById("status");
+        status.textContent = res.ok ? "✅ " + data.message : "❌ " + (data.error || "Failed to build");
+    }
+
+    fetchConfig();
+</script>
+</body>
+</html>

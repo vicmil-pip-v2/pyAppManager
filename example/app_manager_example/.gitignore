@@ -4,3 +4,4 @@ pid
 logs
 .ssh
 auth_token.txt
+local_conf.json

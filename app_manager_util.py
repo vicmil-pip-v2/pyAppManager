@@ -151,21 +151,29 @@ def list_installed_apps(app_dir: str):
 
     return sorted(directories)
 
-
-def get_computer_memory_and_cpu_usage():
+def get_computer_memory_storage_and_cpu_usage():
     # CPU usage (percentage)
     cpu_usage = psutil.cpu_percent(interval=1)
 
     # Memory usage
     memory = psutil.virtual_memory()
 
+    # Disk usage (storage)
+    disk = psutil.disk_usage('/')
+
     # Return as dictionary
     return {
         "cpu_usage_percent": cpu_usage,
+
         "memory_usage_percent": memory.percent,
         "total_memory_gb": round(memory.total / (1024 ** 3), 2),
         "used_memory_gb": round(memory.used / (1024 ** 3), 2),
-        "available_memory_gb": round(memory.available / (1024 ** 3), 2)
+        "available_memory_gb": round(memory.available / (1024 ** 3), 2),
+
+        "storage_usage_percent": disk.percent,
+        "total_storage_gb": round(disk.total / (1024 ** 3), 2),
+        "used_storage_gb": round(disk.used / (1024 ** 3), 2),
+        "free_storage_gb": round(disk.free / (1024 ** 3), 2)
     }
 
 

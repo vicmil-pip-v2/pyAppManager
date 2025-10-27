@@ -8,7 +8,7 @@
         h1, h2 { color: #333; }
         .section { margin-bottom: 30px; }
         .app, .remote-app { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; border-radius: 5px; }
-        button { margin-right: 5px; padding: 5px 10px; }
+        button { margin-right: 5px; padding: 5px 10px; cursor: pointer; }
         .running { color: green; font-weight: bold; }
         .stopped { color: red; font-weight: bold; }
         #system_status { margin-bottom: 20px; }
@@ -17,28 +17,104 @@
             justify-content: space-between;
             align-items: center;
         }
+        .top-bar-buttons {
+            display: flex;
+            gap: 10px;
+        }
         .logout-btn {
             background-color: #dc3545;
             color: white;
             border: none;
             padding: 6px 12px;
             border-radius: 5px;
-            cursor: pointer;
         }
         .logout-btn:hover {
             background-color: #b02a37;
+        }
+        .nginx-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 5px;
+        }
+        .nginx-btn:hover {
+            background-color: #218838;
+        }
+
+        /* ===== SYSTEM STATUS ===== */
+        .status-item {
+            margin-bottom: 15px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 15px;
+            background-color: #eee;
+            border-radius: 5px;
+            overflow: hidden;
+            margin: 5px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #007bff;
+            transition: width 0.4s ease;
+        }
+
+        .progress-fill.warning {
+            background-color: #ffc107;
+        }
+
+        .progress-fill.danger {
+            background-color: #dc3545;
+        }
+
+        .status-item small {
+            display: block;
+            color: #555;
+            font-size: 0.9em;
         }
     </style>
 </head>
 <body>
     <div class="top-bar">
         <h1>App Manager Dashboard</h1>
-        <button class="logout-btn" onclick="logout()">Logout</button>
+        <div class="top-bar-buttons">
+            <button class="nginx-btn" onclick="goToNginx()">NGINX</button>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
     </div>
 
     <!-- System Status -->
     <div id="system_status" class="section">
-        <strong>System Status:</strong> <span id="cpu">CPU: --%</span>, <span id="memory">Memory: --%</span>
+        <h2>System Status</h2>
+
+        <div class="status-item">
+            <strong>CPU Usage:</strong>
+            <div class="progress-bar">
+                <div id="cpu-bar" class="progress-fill" style="width: 0%;"></div>
+            </div>
+            <span id="cpu-text">--%</span>
+        </div>
+
+        <div class="status-item">
+            <strong>Memory Usage:</strong>
+            <div class="progress-bar">
+                <div id="memory-bar" class="progress-fill" style="width: 0%;"></div>
+            </div>
+            <span id="memory-text">--%</span>
+            <small id="memory-details"></small>
+        </div>
+
+        <div class="status-item">
+            <strong>Storage Usage:</strong>
+            <div class="progress-bar">
+                <div id="storage-bar" class="progress-fill" style="width: 0%;"></div>
+            </div>
+            <span id="storage-text">--%</span>
+            <small id="storage-details"></small>
+        </div>
     </div>
 
     <!-- Local Apps -->
@@ -60,13 +136,16 @@
         const AUTH_TOKEN = localStorage.getItem("AUTH_TOKEN");
 
         if (!AUTH_TOKEN) {
-            // Redirect if not logged in
             window.location.href = "/login";
         }
 
         function logout() {
             localStorage.removeItem("AUTH_TOKEN");
             window.location.href = "/login";
+        }
+
+        function goToNginx() {
+            window.location.href = "/nginx";
         }
 
         async function authFetch(url, options = {}) {
@@ -78,7 +157,6 @@
 
             const res = await fetch(url, options);
 
-            // If token expired or invalid, redirect to login
             if (res.status === 401 || res.status === 403) {
                 alert("Session expired or invalid token. Please log in again.");
                 logout();
@@ -93,12 +171,36 @@
             try {
                 const res = await authFetch('/system/status');
                 const data = await res.json();
-                document.getElementById('cpu').textContent = `CPU: ${data.cpu_usage_percent}%`;
-                document.getElementById('memory').textContent = `Memory: ${data.memory_usage_percent}%`;
+
+                // CPU
+                document.getElementById('cpu-text').textContent = `${data.cpu_usage_percent}%`;
+                updateProgressBar('cpu-bar', data.cpu_usage_percent);
+
+                // Memory
+                document.getElementById('memory-text').textContent = `${data.memory_usage_percent}%`;
+                document.getElementById('memory-details').textContent =
+                    `Used: ${data.used_memory_gb} GB / Total: ${data.total_memory_gb} GB`;
+                updateProgressBar('memory-bar', data.memory_usage_percent);
+
+                // Storage
+                document.getElementById('storage-text').textContent = `${data.storage_usage_percent}%`;
+                document.getElementById('storage-details').textContent =
+                    `Used: ${data.used_storage_gb} GB / Total: ${data.total_storage_gb} GB`;
+                updateProgressBar('storage-bar', data.storage_usage_percent);
+
             } catch {
-                document.getElementById('cpu').textContent = `CPU: --%`;
-                document.getElementById('memory').textContent = `Memory: --%`;
+                document.getElementById('cpu-text').textContent = '--%';
+                document.getElementById('memory-text').textContent = '--%';
+                document.getElementById('storage-text').textContent = '--%';
             }
+        }
+
+        function updateProgressBar(id, value) {
+            const bar = document.getElementById(id);
+            bar.style.width = `${value}%`;
+            bar.classList.remove('warning', 'danger');
+            if (value > 80) bar.classList.add('danger');
+            else if (value > 60) bar.classList.add('warning');
         }
 
         setInterval(refreshSystemStatus, 5000);
@@ -168,7 +270,6 @@
             refreshApps();
         }
 
-        // Auto-refresh local app statuses
         setInterval(() => {
             const appsDiv = document.getElementById('apps');
             if (appsDiv.children.length > 0) {
@@ -204,14 +305,13 @@
         async function cloneApp(app) {
             const res = await authFetch(`/apps/${app}/clone`, {
                 method: 'POST',
-                body: JSON.stringify({ repo_url: '' })  // handled in backend
+                body: JSON.stringify({ repo_url: '' })
             });
             const data = await res.json();
             alert(data.message || data.error);
             refreshApps();
         }
 
-        // Initial load
         refreshApps();
     </script>
 </body>

@@ -22,7 +22,7 @@ import secrets
 import json
 
 
-def setup_app_manager_routes(app, APP_DIR: str, PID_DIR: str, LOG_DIR: str, APP_REPO_URL: str, TOKEN_FILE: str, namespace="/", ):
+def setup_app_manager_routes(app, APP_DIR: str, PID_DIR: str, LOG_DIR: str, SSH_KEY_PATH: str, APP_REPO_URL: str, TOKEN_FILE: str, namespace="/", ):
     def verify_app_name(app_name):
         """
         Verify that app_name only consists of:
